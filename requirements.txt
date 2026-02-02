@@ -1,0 +1,89 @@
+# Core Framework
+fastapi==0.108.0
+uvicorn[standard]==0.25.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Database
+sqlalchemy==2.0.25
+alembic==1.13.1
+psycopg2-binary==2.9.9
+asyncpg==0.29.0
+
+# Redis & Caching
+redis==5.0.1
+hiredis==2.3.2
+
+# Celery (Async Tasks)
+celery==5.3.4
+flower==2.0.1
+
+# HTTP Clients
+httpx==0.26.0
+aiohttp==3.9.1
+requests==2.31.0
+
+# AI & Machine Learning
+openai==1.7.2
+langchain==0.1.0
+langchain-openai==0.0.2
+tiktoken==0.5.2
+
+# AWS
+boto3==1.34.20
+botocore==1.34.20
+
+# Google APIs
+google-api-python-client==2.111.0
+google-auth==2.26.2
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
+
+# Email
+python-multipart==0.0.6
+emails==0.6
+jinja2==3.1.3
+
+# Document Processing
+pypdf==3.17.4
+python-docx==1.1.0
+pillow==10.2.0
+python-magic==0.4.27
+
+# Data Processing
+pandas==2.1.4
+numpy==1.26.3
+openpyxl==3.1.2
+
+# Date & Time
+python-dateutil==2.8.2
+pytz==2023.3
+
+# Utilities
+python-dotenv==1.0.0
+pyyaml==6.0.1
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.1.2
+
+# Monitoring & Logging
+sentry-sdk[fastapi]==1.39.2
+structlog==24.1.0
+
+# Testing (also in dev requirements but needed for CI)
+pytest==7.4.3
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+faker==22.0.0
+factory-boy==3.3.0
+
+# Type Hints
+types-python-dateutil==2.8.19.14
+types-pytz==2023.3.1.1
+types-pyyaml==6.0.12.12
+types-redis==4.6.0.11
+types-requests==2.31.0.20
+
+# Code Quality
+ruff==0.1.11

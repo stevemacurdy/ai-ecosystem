@@ -1,0 +1,66 @@
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /workspace
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    make \
+    postgresql-client \
+    git \
+    curl \
+    wget \
+    vim \
+    nano \
+    build-essential \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js (for Next.js frontend)
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g npm@latest
+
+# Upgrade pip
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Copy requirements first (for better caching)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install development tools
+RUN pip install --no-cache-dir \
+    black==23.12.1 \
+    pylint==3.0.3 \
+    mypy==1.8.0 \
+    pytest==7.4.3 \
+    pytest-cov==4.1.0 \
+    pytest-asyncio==0.23.3 \
+    pre-commit==3.6.0 \
+    ipython==8.19.0 \
+    ipdb==0.13.13 \
+    watchdog==3.0.0
+
+# Set up git config
+RUN git config --global user.name "AI Ecosystem Developer" && \
+    git config --global user.email "dev@woulf.com" && \
+    git config --global init.defaultBranch main
+
+# Create necessary directories
+RUN mkdir -p /workspace/logs \
+    && mkdir -p /workspace/uploads \
+    && mkdir -p /workspace/temp
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/workspace \
+    PATH="/workspace/scripts:${PATH}"
+
+# Expose ports
+EXPOSE 8000 3000 5555
+
+# Default command (overridden by docker-compose)
+CMD ["bash"]

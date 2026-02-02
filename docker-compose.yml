@@ -1,0 +1,210 @@
+version: '3.8'
+
+services:
+  # Main application container
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: ai-ecosystem-app
+    volumes:
+      - .:/workspace:cached
+      - /workspace/node_modules
+      - /workspace/.next
+    ports:
+      - "8000:8000"  # FastAPI
+    environment:
+      # Database
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/ai_ecosystem_dev
+      - REDIS_URL=redis://redis:6379/0
+      
+      # API Keys (loaded from .env)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ODOO_URL=${ODOO_URL}
+      - ODOO_DB=${ODOO_DB}
+      - ODOO_LOGIN=${ODOO_LOGIN}
+      - ODOO_API_KEY=${ODOO_API_KEY}
+      
+      # AWS
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_BUCKET_NAME=${AWS_BUCKET_NAME}
+      
+      # Environment
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - LOG_LEVEL=INFO
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn apps.api.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - ai-network
+
+  # Next.js frontend
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: ai-ecosystem-web
+    volumes:
+      - .:/workspace:cached
+      - /workspace/node_modules
+      - /workspace/.next
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NODE_ENV=development
+    working_dir: /workspace/apps/admin
+    command: npm run dev
+    networks:
+      - ai-network
+
+  # PostgreSQL database
+  db:
+    image: postgres:16-alpine
+    container_name: ai-ecosystem-db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=ai_ecosystem_dev
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-network
+
+  # Redis cache and message broker
+  redis:
+    image: redis:7-alpine
+    container_name: ai-ecosystem-redis
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ai-network
+
+  # Celery worker for async tasks
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: ai-ecosystem-worker
+    volumes:
+      - .:/workspace:cached
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/ai_ecosystem_dev
+      - REDIS_URL=redis://redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ODOO_URL=${ODOO_URL}
+      - ODOO_DB=${ODOO_DB}
+      - ODOO_LOGIN=${ODOO_LOGIN}
+      - ODOO_API_KEY=${ODOO_API_KEY}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_BUCKET_NAME=${AWS_BUCKET_NAME}
+      - ENVIRONMENT=development
+    depends_on:
+      - db
+      - redis
+    command: celery -A apps.worker.celery_app worker --loglevel=info --concurrency=4
+    networks:
+      - ai-network
+
+  # Celery beat for scheduled tasks
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: ai-ecosystem-beat
+    volumes:
+      - .:/workspace:cached
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/ai_ecosystem_dev
+      - REDIS_URL=redis://redis:6379/0
+      - ENVIRONMENT=development
+    depends_on:
+      - db
+      - redis
+    command: celery -A apps.worker.celery_app beat --loglevel=info
+    networks:
+      - ai-network
+
+  # Flower - Celery monitoring
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: ai-ecosystem-flower
+    volumes:
+      - .:/workspace:cached
+    ports:
+      - "5555:5555"
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+    command: celery -A apps.worker.celery_app flower --port=5555
+    networks:
+      - ai-network
+
+  # pgAdmin - PostgreSQL web UI
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: ai-ecosystem-pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@woulf.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+      - PGADMIN_CONFIG_SERVER_MODE=False
+      - PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - db
+    networks:
+      - ai-network
+
+  # Mailhog - Email testing (catches all emails sent)
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: ai-ecosystem-mailhog
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - ai-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  ai-network:
+    driver: bridge
