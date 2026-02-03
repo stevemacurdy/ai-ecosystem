@@ -1,7 +1,4 @@
-version: '3.8'
-
 services:
-  # Main application container
   app:
     build:
       context: .
@@ -12,26 +9,19 @@ services:
       - /workspace/node_modules
       - /workspace/.next
     ports:
-      - "8000:8000"  # FastAPI
+      - "8000:8000"
     environment:
-      # Database
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/ai_ecosystem_dev
       - REDIS_URL=redis://redis:6379/0
-      
-      # API Keys (loaded from .env)
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ODOO_URL=${ODOO_URL}
       - ODOO_DB=${ODOO_DB}
       - ODOO_LOGIN=${ODOO_LOGIN}
       - ODOO_API_KEY=${ODOO_API_KEY}
-      
-      # AWS
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - AWS_BUCKET_NAME=${AWS_BUCKET_NAME}
-      
-      # Environment
       - ENVIRONMENT=development
       - DEBUG=true
       - LOG_LEVEL=INFO
@@ -44,7 +34,6 @@ services:
     networks:
       - ai-network
 
-  # Next.js frontend
   web:
     build:
       context: .
@@ -64,7 +53,6 @@ services:
     networks:
       - ai-network
 
-  # PostgreSQL database
   db:
     image: postgres:16-alpine
     container_name: ai-ecosystem-db
@@ -86,7 +74,6 @@ services:
     networks:
       - ai-network
 
-  # Redis cache and message broker
   redis:
     image: redis:7-alpine
     container_name: ai-ecosystem-redis
@@ -103,7 +90,6 @@ services:
     networks:
       - ai-network
 
-  # Celery worker for async tasks
   worker:
     build:
       context: .
@@ -115,23 +101,14 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/ai_ecosystem_dev
       - REDIS_URL=redis://redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - ODOO_URL=${ODOO_URL}
-      - ODOO_DB=${ODOO_DB}
-      - ODOO_LOGIN=${ODOO_LOGIN}
-      - ODOO_API_KEY=${ODOO_API_KEY}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION:-us-east-1}
-      - AWS_BUCKET_NAME=${AWS_BUCKET_NAME}
       - ENVIRONMENT=development
     depends_on:
       - db
       - redis
-    command: celery -A apps.worker.celery_app worker --loglevel=info --concurrency=4
+    command: celery -A apps.worker.celery_app:celery_app worker --loglevel=info --concurrency=4
     networks:
       - ai-network
 
-  # Celery beat for scheduled tasks
   beat:
     build:
       context: .
@@ -146,11 +123,10 @@ services:
     depends_on:
       - db
       - redis
-    command: celery -A apps.worker.celery_app beat --loglevel=info
+    command: celery -A apps.worker.celery_app:celery_app beat --loglevel=info
     networks:
       - ai-network
 
-  # Flower - Celery monitoring
   flower:
     build:
       context: .
@@ -161,15 +137,18 @@ services:
     ports:
       - "5555:5555"
     environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/ai_ecosystem_dev
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       - redis
-    command: celery -A apps.worker.celery_app flower --port=5555
+    command: celery -A apps.worker.celery_app:celery_app flower --port=5555
     networks:
       - ai-network
 
-  # pgAdmin - PostgreSQL web UI
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: ai-ecosystem-pgadmin
@@ -187,23 +166,19 @@ services:
     networks:
       - ai-network
 
-  # Mailhog - Email testing (catches all emails sent)
   mailhog:
     image: mailhog/mailhog:latest
     container_name: ai-ecosystem-mailhog
     ports:
-      - "1025:1025"  # SMTP
-      - "8025:8025"  # Web UI
+      - "1025:1025"
+      - "8025:8025"
     networks:
       - ai-network
 
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
   pgadmin_data:
-    driver: local
 
 networks:
   ai-network:
